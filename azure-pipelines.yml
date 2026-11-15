@@ -1,0 +1,88 @@
+
+# SauceDemo UI Automation - Azure Pipeline
+
+trigger:
+  - main
+
+pr:
+  - main
+
+parameters:
+  - name: agentType
+    displayName: Agent Type
+    type: string
+    default: microsoft-hosted
+    values:
+      - microsoft-hosted
+      - self-hosted
+
+  - name: poolName
+    displayName: Self Hosted Pool Name
+    type: string
+    default: Default
+
+pool:
+  ${{ if eq(parameters.agentType, 'microsoft-hosted') }}:
+    vmImage: ubuntu-latest
+  ${{ else }}:
+    name: ${{ parameters.poolName }}
+
+steps:
+
+  # Step 1: Install Python
+  - task: UsePythonVersion@0
+    displayName: Install Python
+    inputs:
+      versionSpec: '3.13'
+
+  # Step 2: Install dependencies
+  - script: |
+      python -m pip install --upgrade pip
+      python -m pip install -r requirements.txt
+      python -m playwright install --with-deps chromium
+    displayName: Install Dependencies and Browsers
+
+  # Step 3: Prepare directories
+  - script: |
+      mkdir -p reports test-results
+    displayName: Prepare Report Directories
+
+  # Step 4: Execute tests
+  - script: |
+      python -m pytest tests/ -v -n auto \
+        --browser chromium \
+        --junitxml=reports/junit.xml \
+        --html=reports/report.html \
+        --self-contained-html \
+        --tracing=retain-on-failure \
+        --screenshot=only-on-failure \
+        --video=retain-on-failure \
+        --output=test-results
+    displayName: Execute Playwright Tests
+
+  # Step 5: Publish JUnit results
+  - task: PublishTestResults@2
+    displayName: Publish JUnit Test Results
+    condition: always()
+    inputs:
+      testResultsFormat: JUnit
+      testResultsFiles: 'reports/junit.xml'
+      failTaskOnFailedTests: true
+      failTaskOnMissingResultsFile: true
+      testRunTitle: 'SauceDemo UI Automation'
+
+  # Step 6: Publish HTML and JUnit reports
+  - task: PublishPipelineArtifact@1
+    displayName: Publish Test Reports
+    condition: always()
+    inputs:
+      targetPath: 'reports'
+      artifact: 'test-reports'
+
+  # Step 7: Publish failure artifacts
+  - task: PublishPipelineArtifact@1
+    displayName: Publish Failure Artifacts
+    condition: always()
+    inputs:
+      targetPath: 'test-results'
+      artifact: 'failure-artifacts'
