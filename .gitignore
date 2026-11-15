@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+playwright/.auth/
+allure-results/
+allure-report/
+test-results/
+reports/
+
+.env
+.idea/
+.vscode/
+login-report.html
